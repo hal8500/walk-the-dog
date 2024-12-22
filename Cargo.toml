@@ -1,0 +1,48 @@
+[package]
+name = "walk-the-dog"
+version = "0.1.0"
+authors = ["= <gnsk.sz+sub@gamil.com>"]
+edition = "2021"
+description = "hello webassembly"
+repository = ""
+license = "private"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["redirect-log", "draw_bounding_box"]
+redirect-log = ["console_error_panic_hook", "console_log"]
+draw_bounding_box = []
+
+[dependencies]
+wasm-bindgen = { version = "0.2.84", features = ["serde-serialize"]}
+log = "0.4"
+futures = "0.3"
+wasm-bindgen-futures = "0.4"
+web-sys = {version = "0.3.75", features = [
+    "Document",
+    "Window",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlImageElement",
+    "CanvasRenderingContext2d",
+    "Response",
+    "Performance",
+    "KeyboardEvent",
+]}
+console_error_panic_hook = { version = "0.1.7", optional = true}
+console_log = { version = "1.0", optional = true}
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"]}
+serde ={ version = "1.0", features = ["derive"]}
+serde-wasm-bindgen = "0.4"
+anyhow = "1.0.94"
+async-trait = "0.1"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
