@@ -3,41 +3,12 @@ use std::{collections::HashMap, ops::Index};
 
 use crate::{
     browser,
-    engine::{self, Game, KeyState, Point, Rect, Renderer},
+    engine::{self, Game, KeyState, Point, Rect, Renderer, Sheet},
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 use web_sys::HtmlImageElement;
-
-#[derive(Deserialize, Clone, Copy)]
-struct SheetRect {
-    x: i16,
-    y: i16,
-    w: i16,
-    h: i16,
-}
-
-impl From<SheetRect> for Rect {
-    fn from(value: SheetRect) -> Self {
-        Self {
-            x: value.x.into(),
-            y: value.y.into(),
-            width: value.w.into(),
-            height: value.h.into(),
-        }
-    }
-}
-
-#[derive(Deserialize, Clone)]
-struct Cell {
-    frame: SheetRect,
-}
-
-#[derive(Deserialize, Clone)]
-struct Sheet {
-    frames: HashMap<String, Cell>,
-}
 
 #[derive(Clone)]
 struct AnimationSprite {
@@ -205,16 +176,10 @@ impl BlueHatBoy {
 
     fn draw(&self, renderer: &Renderer) {
         let frame = self.get_sprite().get(self.frame).unwrap();
-        let pos = &self.position;
         renderer.draw_image(
             &self.image,
             &frame,
-            &Rect {
-                x: pos.x.into(),
-                y: pos.y.into(),
-                width: frame.width,
-                height: frame.height,
-            },
+            &Rect::new(self.position, frame.width, frame.height),
         );
     }
 
@@ -267,12 +232,7 @@ impl Game for WalkTheDog {
         }
     }
     fn draw(&self, renderer: &Renderer) {
-        renderer.clear(&Rect {
-            x: 0.0,
-            y: 0.0,
-            width: 600.0,
-            height: 600.0,
-        });
+        renderer.clear(&Rect::new_from_x_y(0, 0, 600, 600));
         if let WalkTheDog::Loaded(rhb) = self {
             rhb.draw(renderer);
         }
