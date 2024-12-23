@@ -4,6 +4,7 @@ mod engine;
 mod game;
 mod miya;
 mod segments;
+mod sound;
 mod utils;
 use engine::GameLoop;
 use game::WalkTheDog;

@@ -3,7 +3,9 @@ use std::rc::Rc;
 use self::red_hat_boy_states::*;
 use crate::{
     browser,
-    engine::{self, Cell, Game, Image, KeyState, Point, Rect, Renderer, Sheet, SpriteSheet},
+    engine::{
+        self, Audio, Cell, Game, Image, KeyState, Point, Rect, Renderer, Sheet, Sound, SpriteSheet,
+    },
     segments::{platform_and_stone, stone_and_platform},
 };
 use anyhow::{anyhow, Result};
@@ -163,39 +165,38 @@ pub struct RedHatBoy {
 }
 
 impl RedHatBoy {
-    fn new(sheet: Sheet, image: HtmlImageElement) -> Self {
+    fn new(sheet: Sheet, image: HtmlImageElement, audio: Audio, jump_sound: Sound) -> Self {
         RedHatBoy {
-            state_machine: RedHatBoyStateMachine::Idle(RedHatBoyState::new()),
+            state_machine: RedHatBoyStateMachine::Idle(RedHatBoyState::new(audio, jump_sound)),
             sprite_sheet: sheet,
             image,
         }
     }
 
     fn update(&mut self) {
-        self.state_machine = self.state_machine.update();
+        self.state_machine = self.state_machine.clone().update();
     }
     fn run_right(&mut self) {
-        self.state_machine = self.state_machine.transition(Event::Run);
+        self.state_machine = self.state_machine.clone().transition(Event::Run);
     }
 
     fn slide(&mut self) {
-        self.state_machine = self.state_machine.transition(Event::Slide);
+        self.state_machine = self.state_machine.clone().transition(Event::Slide);
     }
 
     fn jump(&mut self) {
-        self.state_machine = self.state_machine.transition(Event::Jump);
+        self.state_machine = self.state_machine.clone().transition(Event::Jump);
     }
 
     fn knock_out(&mut self) {
-        self.state_machine = self.state_machine.transition(Event::KnockOut);
+        self.state_machine = self.state_machine.clone().transition(Event::KnockOut);
     }
 
     fn land_on(&mut self, position_y: i16) {
-        self.state_machine = self.state_machine.transition(Event::Land(position_y));
-    }
-
-    fn reset(&mut self) {
-        self.state_machine = RedHatBoyState::new().into();
+        self.state_machine = self
+            .state_machine
+            .clone()
+            .transition(Event::Land(position_y));
     }
 
     fn pos_y(&self) -> i16 {
@@ -256,7 +257,7 @@ impl RedHatBoy {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum RedHatBoyStateMachine {
     Idle(RedHatBoyState<Idle>),
     Running(RedHatBoyState<Running>),
@@ -268,7 +269,7 @@ enum RedHatBoyStateMachine {
 
 impl RedHatBoyStateMachine {
     fn transition(self, event: Event) -> Self {
-        match (self, event) {
+        match (self.clone(), event) {
             (RedHatBoyStateMachine::Idle(state), Event::Run) => state.run().into(),
             (RedHatBoyStateMachine::Running(state), Event::Slide) => state.slide().into(),
             (RedHatBoyStateMachine::Running(state), Event::Jump) => state.jump().into(),
@@ -378,7 +379,7 @@ impl From<FallingEndState> for RedHatBoyStateMachine {
 
 mod red_hat_boy_states {
     use super::HEIGHT;
-    use crate::engine::Point;
+    use crate::engine::{Audio, Point, Sound};
 
     const FLOOR: i16 = 479;
     const PLAYER_HEIGHT: i16 = HEIGHT - FLOOR;
@@ -400,7 +401,7 @@ mod red_hat_boy_states {
     const GRAVITY: i16 = 1;
     const TERMINAL_VELOCITY: i16 = 20;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     pub struct RedHatBoyState<S> {
         context: RedHatBoyContext,
         _state: S,
@@ -412,15 +413,18 @@ mod red_hat_boy_states {
         }
 
         pub fn update_context(&mut self, frames: u8) {
-            self.context = self.context.update(frames);
+            let ctx = self.context.clone().update(frames);
+            self.context = ctx;
         }
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     pub struct RedHatBoyContext {
         pub frame: u8,
         pub position: Point,
         pub velocity: Point,
+        audio: Audio,
+        jump_sound: Sound,
     }
 
     impl RedHatBoyContext {
@@ -470,13 +474,20 @@ mod red_hat_boy_states {
             self.position.y = position;
             self
         }
+
+        fn play_jump_sound(self) -> Self {
+            if let Err(err) = self.audio.play_sound(&self.jump_sound) {
+                log::error!("Error playing jump sound {:#?}", err);
+            }
+            self
+        }
     }
 
     #[derive(Clone, Copy)]
     pub struct Idle;
 
     impl RedHatBoyState<Idle> {
-        pub fn new() -> Self {
+        pub fn new(audio: Audio, jump_sound: Sound) -> Self {
             RedHatBoyState {
                 context: RedHatBoyContext {
                     frame: 0,
@@ -485,6 +496,8 @@ mod red_hat_boy_states {
                         y: FLOOR,
                     },
                     velocity: Point::default(),
+                    audio,
+                    jump_sound,
                 },
                 _state: Idle {},
             }
@@ -529,7 +542,11 @@ mod red_hat_boy_states {
 
         pub fn jump(self) -> RedHatBoyState<Jumping> {
             RedHatBoyState {
-                context: self.context.set_vertical_velocity(JUMP_SPEED).reset_frame(),
+                context: self
+                    .context
+                    .set_vertical_velocity(JUMP_SPEED)
+                    .reset_frame()
+                    .play_jump_sound(),
                 _state: Jumping {},
             }
         }
@@ -719,7 +736,11 @@ impl Game for WalkTheDog {
                 let sheet: Sheet = serde_wasm_bindgen::from_value(json)
                     .map_err(|_| anyhow!("Could not convert rhb.json into a Sheet structure"))?;
                 let image = engine::load_image("rhb.png").await?;
-                let boy = RedHatBoy::new(sheet, image);
+                let audio = Audio::new()?;
+                let sound = audio.load_sound("SFX_Jump_23.mp3").await?;
+                let background_music = audio.load_sound("background_song.mp3").await?;
+                audio.play_looping_sound(&background_music)?;
+                let boy = RedHatBoy::new(sheet, image, audio, sound);
 
                 let json = browser::fetch_json("tiles.json").await?;
                 let sheet: Sheet = serde_wasm_bindgen::from_value(json)
@@ -767,9 +788,6 @@ impl Game for WalkTheDog {
             }
             if keystate.is_pressed("Space") {
                 walk.boy.jump();
-            }
-            if keystate.is_pressed("KeyR") {
-                walk.boy.reset();
             }
             //log::info!("{:?}", keystate);
 
