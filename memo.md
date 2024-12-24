@@ -4,6 +4,15 @@
 
 [github repo](https://github.com/PacktPublishing/Game-Development-with-Rust-and-WebAssembly)
 
+## 環境構築
+
+```ps1
+wasm-pack new walk-the-dog
+cd walk-the-dog
+npm init vite
+# vite-project-name => web
+```
+
 ## ビルド＆実行
 
 ### ビルド
