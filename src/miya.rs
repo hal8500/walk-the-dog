@@ -178,7 +178,7 @@ impl BlueHatBoy {
         let frame = self.get_sprite().get(self.frame).unwrap();
         renderer.draw_image(
             &self.image,
-            &frame,
+            frame,
             &Rect::new(self.position, frame.width, frame.height),
         );
     }

@@ -93,7 +93,7 @@ where
     Closure::once(fn_once)
 }
 
-pub type LoopClosure = Closure<dyn FnMut(f64) -> ()>;
+pub type LoopClosure = Closure<dyn FnMut(f64)>;
 
 pub fn request_animation_frame(callback: &LoopClosure) -> Result<i32> {
     window()?
@@ -156,4 +156,18 @@ pub fn find_html_element_by_id(id: &str) -> Result<HtmlElement> {
                 .dyn_into::<HtmlElement>()
                 .map_err(|err| anyhow!("Could not cast into HtmlElement {:#?}", err))
         })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused)]
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    async fn test_error_loading_json() {
+        let json = fetch_json("not_there.json").await;
+        assert_eq!(json.is_err(), true);
+    }
 }

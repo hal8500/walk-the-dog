@@ -136,8 +136,7 @@ impl Image {
 
     pub fn draw(&self, renderer: &Renderer) {
         renderer.draw_entire_image(&self.element, &self.bounding_box.position);
-        #[cfg(feature = "draw_bounding_box")]
-        {
+        if cfg!(feature = "draw_debug_info") {
             renderer.draw_rect(&self.bounding_box);
         }
     }
@@ -212,15 +211,28 @@ impl GameLoop {
 
         let mut keystate = KeyState::new();
         *g.borrow_mut() = Some(browser::create_raf_closure(move |pref: f64| {
-            process_input(&mut keystate, &mut keyevent_receiver);
-            game_loop.accumulated_delta += (pref - game_loop.last_frame) as f32;
-            while game_loop.accumulated_delta > FRAME_SIZE {
-                game.update(&keystate);
-                game_loop.accumulated_delta -= FRAME_SIZE;
+            let frame_time = (pref - game_loop.last_frame) as f32;
+
+            if game_loop.accumulated_delta + frame_time > FRAME_SIZE {
+                game_loop.accumulated_delta += frame_time;
+                game_loop.last_frame = pref;
+                process_input(&mut keystate, &mut keyevent_receiver);
+
+                while game_loop.accumulated_delta > FRAME_SIZE {
+                    game.update(&keystate);
+                    game_loop.accumulated_delta -= FRAME_SIZE;
+                }
+
+                game.draw(&renderer);
+
+                if cfg!(feature = "draw_debug_info") {
+                    unsafe {
+                        draw_frame_rate(&renderer, frame_time);
+                    }
+                }
             }
-            game_loop.last_frame = pref;
-            game.draw(&renderer);
-            let _ = browser::request_animation_frame(f.borrow().as_ref().unwrap());
+
+            browser::request_animation_frame(f.borrow().as_ref().unwrap()).unwrap();
         }));
 
         browser::request_animation_frame(
@@ -229,6 +241,27 @@ impl GameLoop {
                 .ok_or_else(|| anyhow!("GameLoop: Loop is None"))?,
         )?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "draw_debug_info")]
+unsafe fn draw_frame_rate(renderer: &Renderer, frame_time: f32) {
+    static mut FRAMES_COUNTED: i32 = 0;
+    static mut TOTAL_FRAME_TIME: f32 = 0.0;
+    static mut FRAME_RATE: i32 = 0;
+
+    FRAMES_COUNTED += 1;
+    TOTAL_FRAME_TIME += frame_time;
+
+    if TOTAL_FRAME_TIME > 1000.0 {
+        FRAME_RATE = FRAMES_COUNTED;
+        TOTAL_FRAME_TIME = 0.0;
+        FRAMES_COUNTED = 0;
+    }
+
+    let fr = FRAME_RATE;
+    if let Err(err) = renderer.draw_text(&format!("Frame Rate {}", fr), &Point { x: 400, y: 100 }) {
+        log::error!("Could not draw text {:#?}", err);
     }
 }
 
@@ -249,7 +282,7 @@ impl Renderer {
     pub fn draw_image(&self, image: &HtmlImageElement, frame: &Rect, destination: &Rect) {
         self.context
             .draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-                &image,
+                image,
                 frame.x().into(),
                 frame.y().into(),
                 frame.width.into(),
@@ -267,6 +300,8 @@ impl Renderer {
             .draw_image_with_html_image_element(image, position.x.into(), position.y.into())
             .expect("Drawing is throwing exceptions! Unrecoverable error.");
     }
+
+    #[cfg(feature = "draw_debug_info")]
     pub fn draw_rect(&self, bounding_box: &Rect) {
         self.context.set_stroke_style_str("#FF0000");
         self.context.begin_path();
@@ -277,6 +312,15 @@ impl Renderer {
             bounding_box.height.into(),
         );
         self.context.stroke();
+    }
+
+    #[cfg(feature = "draw_debug_info")]
+    pub fn draw_text(&self, text: &str, location: &Point) -> Result<()> {
+        self.context.set_font("16pt serif");
+        self.context
+            .fill_text(text, location.x.into(), location.y.into())
+            .map_err(|err| anyhow!("Error filling text {:#?}", err))?;
+        Ok(())
     }
 }
 
@@ -340,7 +384,7 @@ impl KeyState {
     }
 
     fn set_released(&mut self, code: &str) {
-        self.pressed_keys.remove(code.into());
+        self.pressed_keys.remove(code);
     }
 }
 
@@ -361,7 +405,7 @@ pub struct Audio {
 
 #[derive(Clone)]
 pub struct Sound {
-    buffer: AudioBuffer,
+    pub(crate) buffer: AudioBuffer,
 }
 
 impl Audio {
@@ -380,11 +424,11 @@ impl Audio {
     }
 
     pub fn play_sound(&self, sound: &Sound) -> Result<()> {
-        sound::play_sound(&self.context, &sound.buffer, sound::LOOPING::NO, 1.0)
+        sound::play_sound(&self.context, &sound.buffer, sound::Looping::No, 1.0)
     }
 
     pub fn play_looping_sound(&self, sound: &Sound) -> Result<()> {
-        sound::play_sound(&self.context, &sound.buffer, sound::LOOPING::YES, 0.001)
+        sound::play_sound(&self.context, &sound.buffer, sound::Looping::Yes, 0.001)
     }
 }
 
@@ -396,4 +440,25 @@ pub fn add_click_handler(elem: HtmlElement) -> UnboundedReceiver<()> {
     elem.set_onclick(Some(on_click.as_ref().unchecked_ref()));
     on_click.forget();
     click_reciever
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn two_rects_that_intersect_on_the_left() {
+        let rect1 = Rect {
+            position: Point { x: 10, y: 10 },
+            height: 100,
+            width: 100,
+        };
+
+        let rect2 = Rect {
+            position: Point { x: 0, y: 10 },
+            height: 100,
+            width: 100,
+        };
+
+        assert_eq!(rect2.intersects(&rect1), true);
+    }
 }

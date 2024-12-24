@@ -5,9 +5,9 @@ use web_sys::{
     js_sys::ArrayBuffer, AudioBuffer, AudioBufferSourceNode, AudioContext, AudioDestinationNode,
     AudioNode,
 };
-pub enum LOOPING {
-    NO,
-    YES,
+pub enum Looping {
+    No,
+    Yes,
 }
 
 pub fn create_audio_context() -> Result<AudioContext> {
@@ -29,7 +29,7 @@ fn connect_with_param_audio_node(
     g.gain().set_value(volume);
 
     buffer_source.connect_with_audio_node(&g).unwrap();
-    g.connect_with_audio_node(&destination)
+    g.connect_with_audio_node(destination)
         .map_err(|err| anyhow!("Error connecting audio source to destination {:#?}", err))
 }
 
@@ -39,7 +39,7 @@ fn create_track_sound(
     volume: f32,
 ) -> Result<AudioBufferSourceNode> {
     let track_source = create_buffer_source(ctx)?;
-    track_source.set_buffer(Some(&buffer));
+    track_source.set_buffer(Some(buffer));
     connect_with_param_audio_node(ctx, volume, &track_source, &ctx.destination())?;
     Ok(track_source)
 }
@@ -47,11 +47,11 @@ fn create_track_sound(
 pub fn play_sound(
     ctx: &AudioContext,
     buffer: &AudioBuffer,
-    looping: LOOPING,
+    looping: Looping,
     volume: f32,
 ) -> Result<()> {
     let track_source = create_track_sound(ctx, buffer, volume)?;
-    if matches!(looping, LOOPING::YES) {
+    if matches!(looping, Looping::Yes) {
         track_source.set_loop(true);
     }
     track_source
@@ -64,7 +64,7 @@ pub async fn decode_audio_data(
     array_buffer: &ArrayBuffer,
 ) -> Result<AudioBuffer> {
     JsFuture::from(
-        ctx.decode_audio_data(&array_buffer)
+        ctx.decode_audio_data(array_buffer)
             .map_err(|err| anyhow!("Could not decode audio from array buffer {:#?}", err))?,
     )
     .await

@@ -49,7 +49,7 @@ impl Platform {
     ) -> Self {
         let sprites = sprite_names
             .iter()
-            .filter_map(|sprite_name| sheet.cell(&sprite_name).cloned())
+            .filter_map(|sprite_name| sheet.cell(sprite_name).cloned())
             .collect();
         let bounding_boxes = bounding_boxes
             .iter()
@@ -92,8 +92,7 @@ impl Obstacle for Platform {
             x += sprite.frame.w;
         });
 
-        #[cfg(feature = "draw_bounding_box")]
-        {
+        if cfg!(feature = "draw_debug_info") {
             for bbox in self.bounding_boxes().iter() {
                 renderer.draw_rect(bbox);
             }
@@ -251,8 +250,7 @@ impl RedHatBoy {
         let sprite = self.current_sprite().expect("Cell not found");
 
         renderer.draw_image(&self.image, &sprite.frame.into(), &self.destination_box());
-        #[cfg(feature = "draw_bounding_box")]
-        {
+        if cfg!(feature = "draw_debug_info") {
             renderer.draw_rect(&self.bounding_box());
         }
     }
@@ -303,12 +301,12 @@ impl RedHatBoyStateMachine {
     }
     fn frame_name(&self) -> &str {
         match self {
-            RedHatBoyStateMachine::Idle(state) => &state.frame_name(),
-            RedHatBoyStateMachine::Running(state) => &state.frame_name(),
-            RedHatBoyStateMachine::Sliding(state) => &state.frame_name(),
-            RedHatBoyStateMachine::Jumping(state) => &state.frame_name(),
-            RedHatBoyStateMachine::Falling(state) => &state.frame_name(),
-            RedHatBoyStateMachine::KnockedOut(state) => &state.frame_name(),
+            RedHatBoyStateMachine::Idle(state) => state.frame_name(),
+            RedHatBoyStateMachine::Running(state) => state.frame_name(),
+            RedHatBoyStateMachine::Sliding(state) => state.frame_name(),
+            RedHatBoyStateMachine::Jumping(state) => state.frame_name(),
+            RedHatBoyStateMachine::Falling(state) => state.frame_name(),
+            RedHatBoyStateMachine::KnockedOut(state) => state.frame_name(),
         }
     }
 
@@ -642,7 +640,7 @@ mod red_hat_boy_states {
             self.update_context(JUMPING_FRAMES);
 
             if self.context.position.y >= FLOOR {
-                JumpingEndState::Complete(self.land_on(HEIGHT.into()))
+                JumpingEndState::Complete(self.land_on(HEIGHT))
             } else {
                 JumpingEndState::Jumping(self)
             }
@@ -918,7 +916,7 @@ impl WalkTheDogState<Walking> {
     fn end_game(self) -> WalkTheDogState<GameOver> {
         let receiver = browser::draw_ui("<button id='new_game'>New Game</button>")
             .and_then(|_unit| browser::find_html_element_by_id("new_game"))
-            .map(|element| engine::add_click_handler(element))
+            .map(engine::add_click_handler)
             .unwrap();
 
         WalkTheDogState {
@@ -969,7 +967,9 @@ impl WalkTheDogState<GameOver> {
         }
     }
     fn new_game(self) -> WalkTheDogState<Ready> {
-        let _ = browser::hide_ui();
+        if let Err(err) = browser::hide_ui() {
+            log::error!("Error hiding the browser {:#?}", err);
+        }
         WalkTheDogState {
             _state: Ready,
             walk: Walk::reset(self.walk),
@@ -1061,4 +1061,73 @@ fn rightmost(obstacle_list: &Vec<Box<dyn Obstacle>>) -> i16 {
         .map(|obstacle| obstacle.right())
         .max_by(|x, y| x.cmp(y))
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused)]
+    use std::collections::HashMap;
+
+    use futures::channel::mpsc::unbounded;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{AudioBuffer, AudioBufferOptions};
+
+    use super::*;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn test_transition_from_game_over_to_new_game() {
+        let (_, receiver) = unbounded();
+        let image = HtmlImageElement::new().unwrap();
+        let audio = Audio::new().unwrap();
+        let options = AudioBufferOptions::new(1, 3000.0);
+        let sound = Sound {
+            buffer: AudioBuffer::new(&options).unwrap(),
+        };
+        let rhb = RedHatBoy::new(
+            Sheet {
+                frames: HashMap::new(),
+            },
+            image.clone(),
+            audio,
+            sound,
+        );
+        let sprite_sheet = SpriteSheet::new(
+            Sheet {
+                frames: HashMap::new(),
+            },
+            image.clone(),
+        );
+        let walk = Walk {
+            boy: rhb,
+            backgrounds: [
+                Image::new(image.clone(), Point { x: 0, y: 0 }),
+                Image::new(image.clone(), Point { x: 0, y: 0 }),
+            ],
+            obstacles: vec![],
+            obstacle_sheet: Rc::new(sprite_sheet),
+            stone: image.clone(),
+            timeline: 0,
+        };
+
+        let document = browser::document().unwrap();
+        document
+            .body()
+            .unwrap()
+            .insert_adjacent_html("afterbegin", "<div id='ui'></div>")
+            .unwrap();
+        browser::draw_ui("<p>This is the UI</p>").unwrap();
+
+        let state = WalkTheDogState {
+            _state: GameOver {
+                new_game_event: receiver,
+            },
+            walk,
+        };
+
+        state.new_game();
+        let ui = browser::find_html_element_by_id("ui").unwrap();
+        assert_eq!(ui.child_element_count(), 0);
+    }
 }

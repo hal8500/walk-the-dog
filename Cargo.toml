@@ -11,16 +11,16 @@ license = "private"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["redirect-log", "draw_bounding_box"]
+default = ["redirect-log", "draw_debug_info"]
 redirect-log = ["console_error_panic_hook", "console_log"]
-draw_bounding_box = []
+draw_debug_info = []
 
 [dependencies]
-wasm-bindgen = { version = "0.2.84", features = ["serde-serialize"]}
+wasm-bindgen = { version = "0.2.99", features = ["serde-serialize"]}
 log = "0.4"
 futures = "0.3"
 wasm-bindgen-futures = "0.4"
-web-sys = {version = "0.3.75", features = [
+web-sys = {version = "0.3.76", features = [
     "Document",
     "Window",
     "Element",
@@ -35,19 +35,20 @@ web-sys = {version = "0.3.75", features = [
     "AudioBufferSourceNode",
     "AudioDestinationNode",
     "GainNode",
-    "AudioParam"
+    "AudioParam",
+    "AudioBufferOptions"
 ]}
 console_error_panic_hook = { version = "0.1.7", optional = true}
 console_log = { version = "1.0", optional = true}
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"]}
 serde ={ version = "1.0", features = ["derive"]}
-serde-wasm-bindgen = "0.4"
-anyhow = "1.0.94"
+serde-wasm-bindgen = "0.6"
+anyhow = "1.0"
 async-trait = "0.1"
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.34"
+wasm-bindgen-test = "0.3"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
