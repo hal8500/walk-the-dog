@@ -5,15 +5,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Walk the dog</title>
-  <style type="text/css">
-    canvas {
-      outline-style: none;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" type="text/css" media="screen">
+  <link rel="preload" as="image" href="Button.svg">
+  <link rel="preload" as="font" href="kenney_future_narrow-webfont.woff2">
 </head>
 
 <body>
   <div id="app">
+    <div id="ui">
+    </div>
     <canvas id="canvas" tabindex="0" height="600" width="600"></canvas>
   </div>
   <script type="module" src="/src/main.ts"></script>

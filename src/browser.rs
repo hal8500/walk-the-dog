@@ -3,8 +3,8 @@ use std::future::Future;
 use wasm_bindgen::{closure::WasmClosure, prelude::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    js_sys::ArrayBuffer, CanvasRenderingContext2d, Document, HtmlCanvasElement, HtmlImageElement,
-    Response, Window,
+    js_sys::ArrayBuffer, CanvasRenderingContext2d, Document, Element, HtmlCanvasElement,
+    HtmlElement, HtmlImageElement, Response, Window,
 };
 
 pub fn window() -> Result<Window> {
@@ -114,4 +114,46 @@ pub fn now() -> Result<f64> {
         .performance()
         .ok_or_else(|| anyhow!("Performance object not found"))?
         .now())
+}
+
+pub fn draw_ui(html: &str) -> Result<()> {
+    find_ui()?
+        .insert_adjacent_html("afterBegin", html)
+        .map_err(|err| anyhow!("Could not insert html {:#?}", err))
+}
+
+pub fn hide_ui() -> Result<()> {
+    let ui = find_ui()?;
+    if let Some(child) = ui.first_child() {
+        ui.remove_child(&child)
+            .map(|_removed_child| ())
+            .map_err(|err| anyhow!("Failed to remove child {:#?}", err))
+            .and_then(|_| {
+                canvas()?
+                    .focus()
+                    .map_err(|err| anyhow!("Could not set focus to canvas! {:#?}", err))
+            })
+    } else {
+        Ok(())
+    }
+}
+
+fn find_ui() -> Result<Element> {
+    document().and_then(|doc| {
+        doc.get_element_by_id("ui")
+            .ok_or_else(|| anyhow!("UI element not found"))
+    })
+}
+
+pub fn find_html_element_by_id(id: &str) -> Result<HtmlElement> {
+    document()
+        .and_then(|doc| {
+            doc.get_element_by_id(id)
+                .ok_or_else(|| anyhow!("Element with id {} not found", id))
+        })
+        .and_then(|element| {
+            element
+                .dyn_into::<HtmlElement>()
+                .map_err(|err| anyhow!("Could not cast into HtmlElement {:#?}", err))
+        })
 }

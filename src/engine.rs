@@ -12,7 +12,7 @@ use futures::channel::{
 };
 use serde::Deserialize;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{AudioBuffer, AudioContext, CanvasRenderingContext2d, HtmlImageElement};
+use web_sys::{AudioBuffer, AudioContext, CanvasRenderingContext2d, HtmlElement, HtmlImageElement};
 
 const FRAME_SIZE: f32 = 1.0 / 60.0 * 1000.0;
 type SharedLoopClosure = Rc<RefCell<Option<LoopClosure>>>;
@@ -386,4 +386,14 @@ impl Audio {
     pub fn play_looping_sound(&self, sound: &Sound) -> Result<()> {
         sound::play_sound(&self.context, &sound.buffer, sound::LOOPING::YES, 0.001)
     }
+}
+
+pub fn add_click_handler(elem: HtmlElement) -> UnboundedReceiver<()> {
+    let (mut click_sender, click_reciever) = unbounded();
+    let on_click = browser::closure_wrap(Box::new(move || {
+        let _ = click_sender.start_send(());
+    }) as Box<dyn FnMut()>);
+    elem.set_onclick(Some(on_click.as_ref().unchecked_ref()));
+    on_click.forget();
+    click_reciever
 }
