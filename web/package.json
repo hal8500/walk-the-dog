@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "",
+    "test": "cargo test && wasm-pack test --headless --chrome",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

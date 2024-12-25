@@ -21,6 +21,8 @@ jobs:
         run: cargo install wasm-pack
       - name: Lint with clippy
         run: cargo clippy
+      - name: pack
+        run: wasm-pack build --target web --out-dir web/pkg
       - name: npm
         run: |
           cd web
