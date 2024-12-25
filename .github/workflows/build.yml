@@ -23,3 +23,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.13.0'
+      - run: npm install
+      - run: npm test
+      - run: npm run build
